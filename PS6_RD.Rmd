@@ -16,7 +16,7 @@ Instructions:
 
 - This assignment is an individual assignment. You may discuss your responses in small groups or reach out to a classmate if you are having difficulties with coding but your code and answers must reflect your individual efforts and be written using your own words. Identical assignments will be given a zero grade. 
 
-- You must post your code in a private repo on GitHub and invite Erica and I as collaborators. 
+- You must post your code in a private repo on GitHub and invite the TA and I as collaborators. 
 
 - You must update your work on GitHub frequently through commits where we can observe which lines you most recently worked on when we click on the repo history. This is done very easily if you are using Git correctly which is part of what we are assessing with this assignment. Make sure you make at least five commits that highlight your most recent changes. 
 
