@@ -3,6 +3,7 @@ title: 'Problem Set 6: Regression Discontinuity'
 author: "Claire Duquennois"
 output:
   html_document:
+    df_print: paged 
     number_sections: true
 ---
 
@@ -43,6 +44,13 @@ The original data used in the paper is confidential. The authors instead provide
 Load any R packages you will be using:
 **Code:**
 
+```{r}
+library(haven)
+library(ggplot2)
+library(stargazer)
+library(dplyr)
+library(radiant.data)
+```
 
 
 ## Question: Open the `reg_panes.dta` file. To complete this problem set you will need the following variables from this data file: 
@@ -77,6 +85,18 @@ Drop all other variables. If needed, give the variables you are keeping more int
 
 **Code:**
 
+```{r}
+reg_panes <- read_dta("reg_panes.dta")
+#View(reg_panes)
+
+reg_panes<-reg_panes%>%select("aprobado", "untracked07", "h_89", "hv34", "ind_reest", "newtreat", "geo", "bl_medad", "lnbl_ytoth_pc", "bl_hhsize", "bl_meduc", "missbl_medad", "misslnbl_ytoth_pc", "missbl_hhsize", "missbl_meduc", "sexo", "edad", "aniosed07",  "misssexo", "missedad", "missaniosed")
+
+colnames(reg_panes)<-c("received", "untracked07", "y_07", "y_08", "pred_inc", "elig", "geo", "mean_age", "log_pc_inc", "mean_hh", "mean_edu", "miss_mean_age", "miss_log_pc_inc", "miss_hh", "miss_mean_edu", "fem", "age", "edu_07", "miss_fem", "miss_age", "miss_edu")
+
+
+```
+
+
 
 
 ## **Question: The data as downloaded will require that you clean the variables of interest and construct a new dataset to generate the graphs. Start by generating the following cleaned variable:**
@@ -85,29 +105,64 @@ Drop all other variables. If needed, give the variables you are keeping more int
 
 **Code:**
 
+```{r}
+reg_panes$r_adj<-5
+reg_panes$r_adj[reg_panes$received==1 & reg_panes$untracked07 == 0]<-1
+reg_panes$r_adj[reg_panes$received==0 & reg_panes$untracked07 == 0]<-0
+reg_panes$r_adj[reg_panes$untracked07 == 1]<-NA
+
+reg_panes<-rename(reg_panes, rec_track07=r_adj)
+```
+
+
 ## **Question: We are going to re-scale the variables that indicate support for the current government so that responses range from 0 to 1. To do this, tabulate the current variable to see how it is distributed and then generate a variable that will be NA if it is currently coded as 9, 0 if currently 2, 0.5 if currently 1 and 1 if currently 3. Do this for both the 2007 and 2008 variable. **
 
-Note: This is how the authors modify this variable in their code. It seems counter intuitive and does not correspond to the description of how this variable is coded in the survey questionnaire as reported in their appendix though it does correspond to their discussion in footnote 12. My guess is the transcription/translation of the survey question is incorrect.
 
-**Code:**
+```{r}
+tabular<-as.data.frame(matrix(nrow=3098, ncol=0))
+tabular$y_07<-reg_panes$y_07
+tabular$y_08<-reg_panes$y_08
 
+tabular
+```
+
+
+
+```{r}
+reg_panes$scaled_y_07<-NA
+reg_panes$scaled_y_07[reg_panes$y_07==9]<-NA
+reg_panes$scaled_y_07[reg_panes$y_07==2]<-0
+reg_panes$scaled_y_07[reg_panes$y_07==1]<-0.5
+reg_panes$scaled_y_07[reg_panes$y_07==3]<-1
+
+reg_panes$scaled_y_08<-NA
+reg_panes$scaled_y_08[reg_panes$y_08==9]<-NA
+reg_panes$scaled_y_08[reg_panes$y_08==2]<-0
+reg_panes$scaled_y_08[reg_panes$y_08==1]<-0.5
+reg_panes$scaled_y_08[reg_panes$y_08==3]<-1
+```
 
 ## **Question: Generate a variable that is the square of predicted income.**
 
 **Code:**
+```{r}
+reg_panes$pred_inc_sq<-reg_panes$pred_inc*reg_panes$pred_inc
+```
+
+
 
 # We start by reproducing the main figures (2,3,and 4) of the paper as good figures are key to any regression discontinuity paper.
 
 
 ## **Question: The data consists of over 3000 observations. How many points are plotted on these figures? How should we interpret the y axis? What does each point below the threshold represent? What does each point above the threshold represent?**
 
-**Answer:**
+**Answer: There are 45 points on these figures. In figure 2 the y axis is the probability of being treated (getting PANES). In figures 3 and 4 the y-axis is political support for the government (scaled from 0-1). **
 
 
 
 ## **Question: Why is the number of points above the threshold different from the number below? **
 
-**Answer:**
+**Answer The number of points above the threshold is different from the number below because the authors' data had approximately twice as many households below the threshold than above, so they put more bins below the threshold so that each bin would have the same number of observations in it.**
 
 
 ## **Question: Replicating these figures will require restructuring our data and calculating the values that are plotted. Generate a variable that will indicate the percentile group the observation is in. Note the difference in the number of percentile groups above and below the threshold. **
@@ -115,14 +170,49 @@ Note: This is how the authors modify this variable in their code. It seems count
 Note: you may find the `xtile` function in R useful.
 
 **Code:**
+```{r}
+reg_panes$percentile<-xtile(reg_panes$pred_inc, 99)
+reg_panes$bins<-xtile(reg_panes$pred_inc, 45)
+```
+
+
 
 ## **Question: For each of the percentile groups, calculate the mean of each of the variables we will use for plotting: predicted income, receipt of PANES, support for the government in 2007, and support for the government in 2008.**
 
 **Code:**
 
+```{r}
+shaped_data<-reg_panes%>%filter(!is.na(rec_track07) & !is.na(scaled_y_07) & !is.na(scaled_y_08))
+
+shaped_data<-shaped_data%>%dplyr::group_by(percentile)%>%dplyr::summarise(mean_inc=mean(pred_inc), mean_rec_panes=mean(received), mean_gov_sup07=mean(scaled_y_07), mean_gov_sup08=mean(scaled_y_08))
+
+shaped_data
+```
+
+
 ## **Question: Replicate figure 2. Make the figure as clear and informative as possible. You may want to create an indicator variable for percentiles above and below the threshold. ** 
 
 **Code:**
+
+```{r}
+
+cuts<-c(seq(-.02,0-.02/30, by=(.02/30)), seq(0+(.02/30),.02, by=(.02/15)))
+#cuts
+
+midpoints<-cuts[2:45]-(.02/60)
+#midpoints
+
+reg_panes$bins <- cut(reg_panes$pred_inc, breaks=cuts,
+include.lowest=TRUE, right=FALSE, labels=midpoints)
+
+fig2_data<-reg_panes%>%filter(!is.na(rec_track07) & !is.na(scaled_y_07) & !is.na(scaled_y_08))
+
+fig2_data<-fig2_data%>%dplyr::group_by(bins)%>%dplyr::summarise(mean_inc=mean(pred_inc), mean_rec_panes=mean(received), mean_gov_sup07=mean(scaled_y_07), mean_gov_sup08=mean(scaled_y_08))
+
+```
+
+
+
 
 
 ## **Question: What is the purpose of this figure and what should we take away from it? **
