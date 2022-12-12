@@ -196,10 +196,10 @@ shaped_data
 
 ```{r}
 
-cuts<-c(seq(-.02,0-.02/30, by=(.02/30)), seq(0+(.02/30),.02, by=(.02/15)))
+cuts<-c(seq(-.02,0, by=(.02/30)), seq(0+(.02/15),.02, by=(.02/15)))
 #cuts
 
-midpoints<-cuts[2:45]-(.02/60)
+midpoints<-cuts[2:46]-(.02/60)
 #midpoints
 
 reg_panes$bins <- cut(reg_panes$pred_inc, breaks=cuts,
@@ -207,8 +207,17 @@ include.lowest=TRUE, right=FALSE, labels=midpoints)
 
 fig2_data<-reg_panes%>%filter(!is.na(rec_track07) & !is.na(scaled_y_07) & !is.na(scaled_y_08))
 
-fig2_data<-fig2_data%>%dplyr::group_by(bins)%>%dplyr::summarise(mean_inc=mean(pred_inc), mean_rec_panes=mean(received), mean_gov_sup07=mean(scaled_y_07), mean_gov_sup08=mean(scaled_y_08))
+fig2_data<-fig2_data%>%dplyr::group_by(bins)%>%dplyr::summarise(mean_inc=mean(pred_inc), mean_rec_panes=mean(rec_track07), mean_gov_sup07=mean(scaled_y_07), mean_gov_sup08=mean(scaled_y_08))
 
+fig2_data$indicator<-0
+fig2_data$indicator[fig2_data$mean_inc<0]<-1
+#View(fig2_data)
+vect<-seq(-.02,.02, by=0.01)
+vect
+
+
+plot<-ggplot(data=fig2_data, aes(x=bins, y=mean_rec_panes, color=factor(indicator))) + geom_point() + geom_vline(xintercept = 0) +theme_bw()
+plot
 ```
 
 
@@ -217,7 +226,7 @@ fig2_data<-fig2_data%>%dplyr::group_by(bins)%>%dplyr::summarise(mean_inc=mean(pr
 
 ## **Question: What is the purpose of this figure and what should we take away from it? **
 
-**Answer:**
+**Answer: We use this figure to check that there actually is a gap in the probability of being treated at the gap. It is the "first stage" of the RD. **
 
 
 
@@ -225,15 +234,28 @@ fig2_data<-fig2_data%>%dplyr::group_by(bins)%>%dplyr::summarise(mean_inc=mean(pr
 
 **Code:**
 
+```{r}
+fig3_right<-fig2_data%>%filter(indicator==0)
+fig3_left<-fig2_data%>%filter(indicator==1)
+
+fig3 <- ggplot(data = fig3_left, aes(x = bins, y = mean_gov_sup07)) + geom_point(color = "blue", alpha=1) + labs(x = "Predicted Income", y = "Government Support", title = "Government Support in 2007") + theme_bw() + geom_smooth(data=fig3_left, method = lm, color = "black", size = .5, alpha = .2, label="All categories") 
+
+fig3 <- fig3 + geom_point(data = fig3_right)  + geom_smooth(data=fig3_right, method = lm, color = "red", size = .5, alpha = .2) 
+
+fig3
+```
+
 
 ## **Question: Interpret these figures. What should we take away from them? **
 
-**Answer:** 
+**Answer: These results show a clear gap in government support among those who received panes transfers and those who do not. We should take away from these results that there is likely a causal relationship between the receipt of government transfers and support from the government, at least for people who fall very close to the support cutoff line.** 
 
 
 ## **Question: Replicate the results of the three regressions estimated in the first column of table 1. Present your results in a table. Interpret the coefficients.**
 
 **Code:**
+
+
 
 **Answer:**
 
