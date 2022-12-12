@@ -50,6 +50,7 @@ library(ggplot2)
 library(stargazer)
 library(dplyr)
 library(radiant.data)
+library(lfe)
 ```
 
 
@@ -171,8 +172,10 @@ Note: you may find the `xtile` function in R useful.
 
 **Code:**
 ```{r}
-reg_panes$percentile<-xtile(reg_panes$pred_inc, 99)
-reg_panes$bins<-xtile(reg_panes$pred_inc, 45)
+reg_panes$percentile<-0
+reg_panes$percentile[reg_panes$pred_inc<0]<-xtile(reg_panes$pred_inc[reg_panes$pred_inc<0], 30)
+reg_panes$percentile[reg_panes$pred_inc>0]<-xtile(reg_panes$pred_inc[reg_panes$pred_inc>0], 15) + 100
+
 ```
 
 
@@ -196,27 +199,24 @@ shaped_data
 
 ```{r}
 
-cuts<-c(seq(-.02,0, by=(.02/30)), seq(0+(.02/15),.02, by=(.02/15)))
-#cuts
+```
 
-midpoints<-cuts[2:46]-(.02/60)
-#midpoints
 
-reg_panes$bins <- cut(reg_panes$pred_inc, breaks=cuts,
-include.lowest=TRUE, right=FALSE, labels=midpoints)
+```{r}
 
 fig2_data<-reg_panes%>%filter(!is.na(rec_track07) & !is.na(scaled_y_07) & !is.na(scaled_y_08))
 
-fig2_data<-fig2_data%>%dplyr::group_by(bins)%>%dplyr::summarise(mean_inc=mean(pred_inc), mean_rec_panes=mean(rec_track07), mean_gov_sup07=mean(scaled_y_07), mean_gov_sup08=mean(scaled_y_08))
+fig2_data<-fig2_data%>%dplyr::group_by(percentile)%>%dplyr::summarise(mean_inc=mean(pred_inc), mean_rec_panes=mean(rec_track07), mean_gov_sup07=mean(scaled_y_07), mean_gov_sup08=mean(scaled_y_08))
 
 fig2_data$indicator<-0
 fig2_data$indicator[fig2_data$mean_inc<0]<-1
 #View(fig2_data)
 vect<-seq(-.02,.02, by=0.01)
-vect
 
 
-plot<-ggplot(data=fig2_data, aes(x=bins, y=mean_rec_panes, color=factor(indicator))) + geom_point() + geom_vline(xintercept = 0) +theme_bw()
+
+plot<-ggplot(data=fig2_data, aes(x=mean_inc, y=mean_rec_panes, color=factor(indicator))) + geom_point() + geom_vline(xintercept = 0) +theme_bw() + labs(title="Figure 2: Probability of Receiving Panes", subtitle = "Cutoff for Eligibility is Predicted Income = 0", x="Predicted income", y = "Probability of Receiving Panes")  + theme(legend.position="none")
+
 plot
 ```
 
@@ -226,7 +226,7 @@ plot
 
 ## **Question: What is the purpose of this figure and what should we take away from it? **
 
-**Answer: We use this figure to check that there actually is a gap in the probability of being treated at the gap. It is the "first stage" of the RD. **
+**Answer: We use this figure to check that there actually is a discontinuity in the probability of being treated at the gap. It is the "first stage" of the RD. **
 
 
 
@@ -238,33 +238,58 @@ plot
 fig3_right<-fig2_data%>%filter(indicator==0)
 fig3_left<-fig2_data%>%filter(indicator==1)
 
-fig3 <- ggplot(data = fig3_left, aes(x = bins, y = mean_gov_sup07)) + geom_point(color = "blue", alpha=1) + labs(x = "Predicted Income", y = "Government Support", title = "Government Support in 2007") + theme_bw() + geom_smooth(data=fig3_left, method = lm, color = "black", size = .5, alpha = .2, label="All categories") 
+fig3 <- ggplot(data = fig3_left, aes(x = mean_inc, y = mean_gov_sup07)) + geom_point(color = "blue", alpha=1) + labs(x = "Predicted Income", y = "Government Support", title = "Government Support in 2007", subtitle = "Eligibility Cutoff for PANES is Predicted Income = 0") + theme_bw() + geom_smooth(data=fig3_left, method = lm, color = "blue", size = .8, alpha = .2, label="All categories") +geom_vline(xintercept = 0)
 
-fig3 <- fig3 + geom_point(data = fig3_right)  + geom_smooth(data=fig3_right, method = lm, color = "red", size = .5, alpha = .2) 
+fig3 <- fig3 + geom_point(data = fig3_right, color="red")  + geom_smooth(data=fig3_right, color="red", method = lm, size = .8, alpha = .2) + annotate(geom="text", x=-.01, y=.8524, label="Received PANES", color="blue") + annotate(geom="text", x=.011, y=.838, label="Did Not Receive PANES", color="red")
 
 fig3
 ```
 
+```{r}
+fig4_right<-fig2_data%>%filter(indicator==0)
+fig4_left<-fig2_data%>%filter(indicator==1)
 
+fig4 <- ggplot(data = fig4_left, aes(x = mean_inc, y = mean_gov_sup08)) + geom_point(color = "blue", alpha=1) + labs(x = "Predicted Income", y = "Government Support", title = "Government Support in 2008",subtitle = "Eligibility Cutoff for PANES is Predicted Income = 0") + theme_bw() + geom_smooth(data=fig4_left, method = lm, color = "blue", size = .8, alpha = .2, label="All categories") 
+fig4 <- fig4 + geom_point(data = fig4_right, color="red")  + geom_smooth(data=fig4_right, method = lm, color = "red", size = .8, alpha = .2) + geom_vline(xintercept = 0) + annotate(geom="text", x=-.012, y=.8, label="Received PANES", color="blue")+ annotate(geom="text", x=.011, y=.8, label="Did Not Receive PANES", color="red")
+
+fig4
+```
 ## **Question: Interpret these figures. What should we take away from them? **
 
-**Answer: These results show a clear gap in government support among those who received panes transfers and those who do not. We should take away from these results that there is likely a causal relationship between the receipt of government transfers and support from the government, at least for people who fall very close to the support cutoff line.** 
+**Answer: These results show a clear gap in government support among those who received panes transfers and those who do not. We should take away from these results that there is likely a causal relationship between the receipt of government transfers and support for the government, at least for people who fall very close to the support cutoff line.** 
 
 
 ## **Question: Replicate the results of the three regressions estimated in the first column of table 1. Present your results in a table. Interpret the coefficients.**
 
 **Code:**
 
+```{r, warning = FALSE, results='asis'}
+row1col1<-felm(received~elig|0|0|pred_inc, reg_panes)
+row2col1<-felm(scaled_y_07~elig|0|0|pred_inc, reg_panes)
+row3col1<-felm(scaled_y_08~elig|0|0|pred_inc, reg_panes)
+
+stargazer(row1col1, row2col1, row3col1,type="html", se=list(row1col1$rse, row2col1$rse, row3col1$rse))
+```
 
 
-**Answer:**
+**Answer: The coefficient on received means that being eligible for PANES means a 99.5% probability of receiving PANES. The coefficient on scaled_y_07 means that being eligible for PANES is associated with a 0.129 point higher approval rating. Given that the coefficient is highly significant and that approval ratings go from 0-1, the 0.129 is a proportionately large number. The coefficient on scaled_y_08 means that being eligible for PANES is associated with a 0.118 unit increase of government approval rating in 2008. This number is highly significant and a 11.8% of the total possible rating (1).**
 
 
 
 ## **Question: Write down the specifications used in row 2 of columns 1,2 and 3 of table 1. **
 
 **Answer:**
+#ROW 2 COLUMN 1
+$$Y_isupport07 = \beta_0+ \beta eligibility + e_i$$
 
+#ROW 2 COLUMN 2
+
+$$Y_isupport07 = \beta_0+ \beta eligibility + \beta predincome+ \beta predincome*eligibility + e_i$$
+
+
+#ROW 2 COLUMN 3
+
+$$Y_isupport07 = \beta_0+ \beta eligibility  + \beta predincome+ \beta predincome*eligibility+ \beta predincome^2+ \beta predincome^2*eligibility + e_i$$
 
 
 ## **Question: Replicate all of the results reported in row 2 of Table 1. Explain the difference between these specifications and interpret their coefficients.**
@@ -272,54 +297,116 @@ Hint: the variables listed in the table above after newtreat are the controls yo
 
 **Code:**
 
-**Answer:**
+```{r, warning = FALSE, results='asis'}
+row2col1<-felm(scaled_y_07~elig|0|0|pred_inc, reg_panes)
+
+row2col2<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig|0|0|pred_inc, reg_panes)
+
+row2col3<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig+pred_inc_sq+pred_inc_sq*elig|0|0|pred_inc, reg_panes)
+
+row2col4<-felm(scaled_y_07~elig+geo+mean_age+log_pc_inc+mean_hh+mean_edu + miss_mean_edu+miss_mean_age+miss_log_pc_inc+fem+age+edu_07+miss_fem+miss_edu|0|0|pred_inc, reg_panes)
+
+row2col5<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig+geo+mean_age+log_pc_inc+mean_hh+mean_edu + miss_mean_edu+miss_mean_age++miss_hh+miss_log_pc_inc+fem+age+edu_07+miss_fem+miss_edu|0|0|pred_inc, reg_panes)
+
+row2col6<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig+pred_inc_sq+pred_inc_sq*elig+geo+mean_age+log_pc_inc+mean_hh+mean_edu + miss_mean_edu+miss_mean_age+miss_log_pc_inc+fem+age+edu_07+miss_fem+miss_edu+miss_hh|0|0|pred_inc, reg_panes)
+
+row2col5<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig+geo+mean_age+log_pc_inc+mean_hh+mean_edu+ miss_mean_edu+miss_mean_age+miss_log_pc_inc+fem+age+edu_07+miss_fem+miss_edu+miss_hh|0|0|pred_inc, reg_panes)
+
+
+stargazer(row2col1, row2col2, row2col3,row2col4,row2col5,row2col6, type="html", se=list(row2col1$rse, row2col2$rse, row2col3$rse, row2col4$rse,row2col5$rse,row2col6$rse))
+```
+
+
+**Answer: Specification 1  uses just eligibility. The second specification has explanatory variables predicted income, eligibility, and an interaction term between the two. The third specification has explanatory variables predicted income, predicted income squared, eligibility, and two interaction terms: predicted income * eligibility and predicted income squared * eligibility. Regressions 4-6 repeat the first three specification, but with the fifteen control variables.**
+
+**Interpret the coefficients: All of the coefficients are between 0.1 and 0.15. Because the support for the government variables ranges from 0 to 1 this means that the coefficients are estimating that being eligible for PANES is correlated with an increase in support for the government in 2007 by about 10-15% for those near the eligibility cutoff. **
 
 
 
 ## **Question: What is the point of including all of these specifications?**
 
-**Answer:**
+**Answer: These specifications prove the robustness of the results. Because the eligibility coefficient remains highly significant throughout all of the specifications we know that the authors didn't just pick a regression model that spit out significant values.**
 
 
 ## **Question: Using the coefficients estimated above, write out the function you would use to predict the probability a household supports the current government based on their predicted income score: **
 
 **a) If they are eligible for the transfer using the results from column 1.**
 
+p(support) = 0.129 + 0.772 = 0.901
+
+
 **b) If they are not eligible for the transfer using the results from column 1.**
+
+p(support) = 0.772
 
 **c) If they are eligible for the transfer using the results from column 2.**
 
+p(support) = 0.110 - 0.011(predicted income) - 1.916*predicted income + 0.772 = 0.110 - 1.927(predicted income) + 0.772
+
 **d) If they are not eligible for the transfer using the results from column 2.**
+
+p(support) = .772 - 0.011(predicted income)
 
 **e) If they are eligible for the transfer using the results from column 3.**
 
+p(support) = 0.769 + 0.130 + 0.812*predicted income - 40.457(predicted income^2) + 2.377(predicted income) + 292.215(predicted income^2)
+           = 0.899 + 3.189(predicted income) + 251.758(predicted income^2)
+
 **f) If they are not eligible for the transfer using the results from column 3.**
 
-**Answer:**
-
+p(support) = 0.769 + 0.812(predicted income) - 40.457(predicted income^2)
 
 
 ## **Question: How narrow is the "bandwidth" used by the authors. Why does this matter? Check that the results are robust to a narrower bandwidth. **
 
 **Code:**
 
-**Answer:**
+
+```{r, warning = FALSE, results='asis'}
+reg_panes_narrow<-reg_panes%>%filter(pred_inc<=0.01 | pred_inc>=-.01)
+
+
+
+row2col1<-felm(scaled_y_07~elig|0|0|pred_inc, reg_panes_narrow)
+
+row2col2<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig|0|0|pred_inc, reg_panes_narrow)
+
+row2col3<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig+pred_inc_sq+pred_inc_sq*elig|0|0|pred_inc, reg_panes_narrow)
+
+row2col4<-felm(scaled_y_07~elig+geo+mean_age+log_pc_inc+mean_hh+mean_edu + miss_mean_edu+miss_mean_age+miss_log_pc_inc+fem+age+edu_07+miss_fem+miss_edu|0|0|pred_inc, reg_panes_narrow)
+
+row2col5<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig+geo+mean_age+log_pc_inc+mean_hh+mean_edu + miss_mean_edu+miss_mean_age++miss_hh+miss_log_pc_inc+fem+age+edu_07+miss_fem+miss_edu|0|0|pred_inc, reg_panes_narrow)
+
+row2col6<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig+pred_inc_sq+pred_inc_sq*elig+geo+mean_age+log_pc_inc+mean_hh+mean_edu + miss_mean_edu+miss_mean_age+miss_log_pc_inc+fem+age+edu_07+miss_fem+miss_edu+miss_hh|0|0|pred_inc, reg_panes_narrow)
+
+row2col5<-felm(scaled_y_07~elig+pred_inc+pred_inc*elig+geo+mean_age+log_pc_inc+mean_hh+mean_edu+ miss_mean_edu+miss_mean_age+miss_log_pc_inc+fem+age+edu_07+miss_fem+miss_edu+miss_hh|0|0|pred_inc, reg_panes_narrow)
+
+
+stargazer(row2col1, row2col2, row2col3,row2col4,row2col5,row2col6, type="html", se=list(row2col1$rse, row2col2$rse, row2col3$rse, row2col4$rse,row2col5$rse,row2col6$rse))
+
+```
+
+
+
+**Answer: The bandwidth used by the authors is 0.02 standard errors around 0. This matters because the bandwidth determines how many points are in your data set, how random assignment around the cutoff is, and what part of the overall population you can speak for. Larger bandwidths push the random assignment assumption around the cutoff. Smaller bandwidths mean you have a smaller data set, which means your standard errors are going to be larger. I checked the robustness using a bandwidth of 0.01 standard errors around 0 of the predicted income. All of the beta values remain highly significant. This means that the results are robust to a narrower bandwidth.**
 
 
 ## **Question: The authors attribute these effects to the causal effect of receiving the government transfers. What is the implied assumption behind this interpretation?**
 
-**Answer:**
+**Answer: The implied assumption behind the causal interpretation is that eligibility right around the threshold is as good as random. This means that no one is "gaming the system" to end up just underneath the eligibility line, which would enter selection bias into the results and would mean we could no longer interpret a causal relationship.**
 
 
 
 ## **Question: What evidence do they provide to support this assumption?**
 
-**Answer:**
+**Answer: The evidence to support this assumption is that the people filling out the surveys for the PANES eligibility didn't know how the eligibility was being calculated, which means they wouldn't have been able to game the system. Furthermore, the poverty score and the assignment cutoff were not even determined until after the surveys had been taken, which means it is impossible that participants knew well enough to  lie ahead of time. **
  
+
 
 ## **Question: Was this threshold eligibility score specifically designed for this particular program? Why does this matter?**
 
-**Answer:**
+**Answer: This threshold eligibility score was specifically designed for this particular program. This matters because if the same threshold was also being used for another program than the effects of receiving transfers from that program would also be coming in to these results. If that were the case, it would be impossible to tell what of the effects were because of PANES and what were because of the other programs, which means you can no longer determine a causal relationship. **
+
 
 
 
